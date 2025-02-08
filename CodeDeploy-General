@@ -1,0 +1,19 @@
+############################CodeDeploy Concept
+CodeDeploy is a deployment service that automates application deployments to Amazon EC2 instances, on-premises instances, serverless Lambda functions, or Amazon ECS services.
+Codedeploy can deploy code,script, files, lambda function, packages etc. The code or required packages can be on S3, Github, etc
+CloudBUild can also the deploy the code. However CodeDeploy lot of extra features over Codebuild. Deployment Stratery is one of the main feature.
+Which is very importan and defines how the deployment would be perfomerd like BlueGreen or Canary.
+We can use CodeDeploy with Below compute platforms:
+1) EC2/On Premises Servers ------using an in-place or blue/green deployment type
+3) Lambda ---- canary, linear, or all-at-once configuration
+4) ECS  ------a canary, linear, or all-at-once configuration.
+
+##################################Core Components######################
+1) Deployment Group --- A deployment group is a set of individual instances 
+2) Deployment  ----  A deployment type is a method used to make the latest application revision available on instances in a deployment group.
+3) Deployment Confguration ---A deployment configuration is a set of deployment rules and deployment success and failure conditions.EC2/On-Premises compute platform, you can specify the 
+                              minimum number of healthy instances for the deployment. If your deployment uses the AWS Lambda or the Amazon ECS compute platform, 
+                              you can specify how traffic is routed to your updated Lambda function or ECS task set.
+4) Revision  ------- A revision is a version of your application.
+5) Application ---An application is a name that uniquely identifies the application you want to deploy.It functions as a container, to ensure the correct combination of revision, 
+                  deployment configuration, and deployment group are referenced during a deployment.
