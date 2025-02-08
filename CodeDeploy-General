@@ -4,7 +4,7 @@ Codedeploy can deploy code,script, files, lambda function, packages etc. The cod
 CloudBUild can also the deploy the code. However CodeDeploy lot of extra features over Codebuild. Deployment Stratery is one of the main feature.
 Which is very importan and defines how the deployment would be perfomerd like BlueGreen or Canary.
 We can use CodeDeploy with Below compute platforms:
-1) EC2/On Premises Servers ------using an in-place or blue/green deployment type
+1) EC2/On Premises Servers ------using an in-place or blue/green deployment type.The CodeDeploy agent is required if you deploy to an EC2/On-Premises compute platform.
 3) Lambda ---- canary, linear, or all-at-once configuration
 4) ECS  ------a canary, linear, or all-at-once configuration.
 
@@ -17,3 +17,36 @@ We can use CodeDeploy with Below compute platforms:
 4) Revision  ------- A revision is a version of your application.
 5) Application ---An application is a name that uniquely identifies the application you want to deploy.It functions as a container, to ensure the correct combination of revision, 
                   deployment configuration, and deployment group are referenced during a deployment.
+
+
+Deployment Type = Strategy; ------ In place (update existing), Blue/Green (New and then swap with old)
+Deployment Configuration = Speed of Execution. ----- 
+
+Deployment Type:
+In Place
+Blue/Green
+
+Deployment configuration: It bascially works on deployment group:
+For Ec2/On Premises Servers: Default available
+######################################
+CodeDeployDefault.AllAtOnce
+CodeDeployDefault.HalfAtATime
+CodeDeployDefault.OneAtATime
+###################################
+For ECS / Lambda (Showing some, You can check the docs for all available deployment configurations)
+CodeDeployDefault.ECSLinear10PercentEvery1Minutes
+CodeDeployDefault.ECSCanary10Percent5Minutes
+CodeDeployDefault.LambdaCanary10Percent5Minutes
+CodeDeployDefault.LambdaCanary10Percent10Minutes
+####################################################################################
+
+We can create our own deployment configuration if required:. example shown below
+aws deploy create-deployment-config --deployment-config-name ThreeQuartersHealthy --minimum-healthy-hosts type=FLEET_PERCENT,value=75
+#####################################################################################
+High Level process for the CodeDeploy:
+1) Create Instances
+2) tag the instances 
+3) Create Apllication
+4) Deployment Group
+5) Create Applicatipon revision
+6) 
