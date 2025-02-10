@@ -48,7 +48,7 @@ For EC2
         Stops the old version and installs the new one on the same instances.
         Supported for: EC2, On-Premises----- Important ----Have the option to use Load balancer, But without load balancer is also possible
         Not available for: ECS, Lambda
-    Blue/Green Deployment (EC2), You have to use Load Balancer. With load balancer, Blue Green is not possible
+    Blue/Green Deployment (EC2), You have to use Load Balancer. Without load balancer, Blue Green is not possible for EC2
         1) Provide instances manually ---specify the instances to be counted as your replacement using Amazon EC2 instance tags, Amazon EC2 Auto Scaling group names, or both.
         If you choose this option, you do not need to specify the instances for the replacement environment until you create a deployment.
         That means you define the replacement instance/scaling group during deployment creation. Code Deploy perform the action defined in the appspec.yml file in
@@ -65,14 +65,14 @@ If Code Deploy fails, Please check CLoud trail.
  
 
 For ECS:
-    Blue/Green Deployment:
+    Blue/Green Deployment: (Use Load Balancer)
 
     Traffic is shifted between old and new task sets using an Application Load Balancer (ALB).
     Supports Canary/Linear deployments:
         ECSLinear10PercentEvery1Minutes – Increases traffic by 10% every minute.
         ECSCanary10Percent5Minutes – Shifts 10% traffic first, waits 5 minutes, then shifts the rest.
 
-For Lambda:
+For Lambda: (Use Versions mot Load Balancer)
     Blue/Green Deployment
 
     Traffic is shifted between function versions using an alias.
