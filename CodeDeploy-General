@@ -60,14 +60,15 @@ For EC2
         
 Make sure that you have all required Privs like auto scaling, load balancer, S3 If using as source, EC2 as Code Deploy need all these.
 Instance Profile is also required, so that code deploy agents can interact with Code Deploy service. 
-If Code Deploy fails, Please check CLoud trail. 
+If Code Deploy fails, Please check CLoud trail. Tags plays very important role in this. So please set the tages as per you environment.
 
  
 
 For ECS:
     Blue/Green Deployment: (Use Load Balancer)
 
-    Traffic is shifted between old and new task sets using an Application Load Balancer (ALB).
+    Traffic is shifted between old and new task sets using an Application Load Balancer (ALB).ECS compute platform, you control how 
+    traffic is shifted from your original task set to your new task set.
     Supports Canary/Linear deployments:
         ECSLinear10PercentEvery1Minutes – Increases traffic by 10% every minute.
         ECSCanary10Percent5Minutes – Shifts 10% traffic first, waits 5 minutes, then shifts the rest.
