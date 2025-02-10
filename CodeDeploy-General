@@ -42,6 +42,10 @@ Deployment Type (Strategy)
 There are only two Deployment startergy available in Code Deploy. However Code Deploy Provide canany/Linear Traffice shifting option with in Deployment group only for 
 ECS and lambda.
 
+Note : -  AWS still doesn't support Blue/Green deployments via CloudFormation if you are using EC2. For blue/green deployments, AWS CloudFormation supports deployments on Lambda compute platforms only. 
+You can perform Amazon ECS blue/green deployments using AWS::CodeDeploy::BlueGreen hook.
+Wasted lot of time on this :) (to write cloudformation for EC2)
+
 For EC2
     For Code Deploy to work on Ec2 Code-Deploy agents are required. Make sure agent is installed on the instance and running
     In-Place Deployment (Rolling Update)
