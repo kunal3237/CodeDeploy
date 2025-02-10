@@ -106,3 +106,5 @@ Creating a Custom Deployment Configuration
 
 aws deploy create-deployment-config --deployment-config-name ThreeQuartersHealthy --minimum-healthy-hosts type=FLEET_PERCENT,value=75
 This ensures that at least 75% of instances remain healthy during deployment.
+
+
