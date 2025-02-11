@@ -1,0 +1,253 @@
+#######################Test case for CodeDeploy with Lambda
+
+Code Deploy is used for Traffic Shifting while Working with Lambda Function. It does not deploy the function. 
+If you wantto deploy the function, use CodeBuild Or CodePipeline for this.
+Also make sure that both versions  (Current and target) and Alias already exists as appspec file format for lambda expects that 
+
+I have created a fucntion name myfunc in the Lambda.
+Below are the version available for the function:
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ aws lambda list-versions-by-function --function-name myfunc  --query "Versions"[*].Version --profile sharma --region ap-south-1
+[
+    "$LATEST",
+    "1",
+    "2"
+]
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ 
+
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ aws lambda list-aliases --function-name myfunc --profile sharma --region ap-south-1
+{
+    "Aliases": [
+        {
+            "AliasArn": "arn:aws:lambda:ap-south-1:*******:function:myfunc:myalias",
+            "Name": "myalias",
+            "FunctionVersion": "1",
+            "Description": "",
+            "RevisionId": "ceeb563e-0e12-4d8d-bdc6-24482a97b66e"
+        }
+    ]
+}
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ 
+
+Function code is simple.
+def lambda_handler(event, context):
+    # TODO implement
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Hello from Lambda! Version 1')                                  #For Version 1, And For Version 2,I Just mentioned Version 2 
+    }
+
+Invoking Function showing Version 1 of the Function:
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ aws lambda invoke --function-name myfunc:myalias  response.json --profile sharma --region ap-south-1
+{
+    "StatusCode": 200,
+    "ExecutedVersion": "1"
+}
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ 
+
+Application/Deployment group and Deployment in CodeDeploy
+
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ aws deploy get-application --application-name myapp --profile sharma --region ap-south-1
+{
+    "application": {
+        "applicationId": "a073a597-802d-4526-afed-955bff8f7a0c",
+        "applicationName": "myapp",
+        "createTime": "2025-02-11T18:08:39.065000+05:30",
+        "linkedToGitHub": false,
+        "computePlatform": "Lambda"
+    }
+}
+
+appspec.yml file used for deployment:
+appspec file has diffenent structute based on the service bein used. Below is the file for lambda. I am also using hook here. Hook in this case is another lambda funtion which 
+will be called with "BeforeAllowTraffic" hook. These hooks return some event to codedeploy to proceed further. Else your deployment would be stuck Pre-Deployment stage
+
+version: 0.0
+Resources:
+  - myfunc:
+      Type: AWS::Lambda::Function
+      Properties:
+        Name: "myfunc"
+        Alias: "myalias"
+        CurrentVersion: "1"
+        TargetVersion: "2"
+Hooks:
+   - BeforeAllowTraffic: "myfunc1"                                          
+#   - AfterAllowTraffic: "LambdaFunctionToValidateAfterTrafficShift"
+
+myfunc1 function:
+########################################################################
+import json
+import boto3
+
+def lambda_handler(event, context):
+    print("BeforeAllowTraffic Hook Triggered")
+    
+    # Extract deployment details
+    deployment_id = event.get("DeploymentId", "Unknown")                                ####BeforeAllowTraffic Hook sent an Event to myfunc1 function. Now we will work on that event to proceed further 
+    lifecycle_event_hook_execution_id = event.get("LifecycleEventHookExecutionId", "Unknown")
+
+    print(f"Deployment ID: {deployment_id}")
+    print(f"Lifecycle Event Hook Execution ID: {lifecycle_event_hook_execution_id}")
+
+    # Simulate validation logic (Check if environment variables are set)
+    if deployment_id != "Unknown":
+        print("Validation successful")
+        status = "Succeeded"
+    else:
+        print("Validation failed")
+        status = "Failed"
+
+    # Notify CodeDeploy about the result
+    codedeploy_client = boto3.client("codedeploy")                                    ###Calling Code Deploy service with boto3 and if the status is "Succeeded", Next phase of the CodeDeploy will be executed, else the deployment will fail
+    codedeploy_client.put_lifecycle_event_hook_execution_status(
+        deploymentId=deployment_id,
+        lifecycleEventHookExecutionId=lifecycle_event_hook_execution_id,
+        status=status
+    )
+
+    return {
+        "statusCode": 200,
+        "body": json.dumps({"status": status})
+    }
+#########################################################################
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ 
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ aws deploy get-deployment-group --application-name myapp --deployment-group-name mygrp --profile sharma --region ap-south-1
+{
+    "deploymentGroupInfo": {
+        "applicationName": "myapp",
+        "deploymentGroupId": "7d1b84c7-38f0-459f-8c66-b96d8781a8f1",
+        "deploymentGroupName": "mygrp",
+        "deploymentConfigName": "CodeDeployDefault.LambdaLinear10PercentEvery1Minute",                                        #####Linear Traffic Shifting
+        "ec2TagFilters": [],
+        "onPremisesInstanceTagFilters": [],
+        "autoScalingGroups": [],
+        "serviceRoleArn": "arn:aws:iam::*******:role/roleforcodedeploy",
+        "triggerConfigurations": [],
+        "alarmConfiguration": {
+            "enabled": false,
+            "ignorePollAlarmFailure": false,
+            "alarms": []
+        },
+        "deploymentStyle": {
+            "deploymentType": "BLUE_GREEN",                                                                                #####Blue Green Deployment
+            "deploymentOption": "WITH_TRAFFIC_CONTROL"
+        },
+        "outdatedInstancesStrategy": "UPDATE",
+        "computePlatform": "Lambda",
+        "terminationHookEnabled": false
+    }
+}
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ 
+
+Deployment Status----
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ aws deploy get-deployment --deployment-id d-AQUTB8CY9 --profile sharma --region ap-south-1
+{
+    "deploymentInfo": {
+        "applicationName": "myapp",
+        "deploymentGroupName": "mygrp",
+        "deploymentConfigName": "CodeDeployDefault.LambdaLinear10PercentEvery1Minute",
+        "deploymentId": "d-AQUTB8CY9",
+        "revision": {
+            "revisionType": "String",
+            "string": {
+                "sha256": "150d06d2af4317157d087d6e03d2a793d7a2b15e0dccb6e4b68d0f4ccf6922d1"
+            }
+        },
+        "status": "InProgress",
+        "createTime": "2025-02-11T18:14:54.602000+05:30",
+        "deploymentOverview": {
+            "Pending": 0,
+            "InProgress": 1,
+            "Succeeded": 0,
+            "Failed": 0,
+            "Skipped": 0,
+            "Ready": 0
+        },
+        "creator": "user",
+        "ignoreApplicationStopFailures": false,
+        "updateOutdatedInstancesOnly": false,
+        "deploymentStyle": {
+            "deploymentType": "BLUE_GREEN",
+            "deploymentOption": "WITH_TRAFFIC_CONTROL"
+        },
+        "instanceTerminationWaitTimeStarted": false,
+        "fileExistsBehavior": "DISALLOW",
+        "deploymentStatusMessages": [],
+        "computePlatform": "Lambda"
+    }
+}
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ 
+
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ for i in {1..5}; do aws lambda invoke --function-name myfunc:myalias  --profile sharma --region ap-south-1 response.json; sleep 20; done
+{
+    "StatusCode": 200,
+    "ExecutedVersion": "1"
+}
+{
+    "StatusCode": 200,
+    "ExecutedVersion": "1"
+}
+{
+    "StatusCode": 200,
+    "ExecutedVersion": "1"
+}
+{
+    "StatusCode": 200,
+    "ExecutedVersion": "1"
+}
+{
+    "StatusCode": 200,
+    "ExecutedVersion": "2"
+}
+
+
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ aws deploy get-deployment --deployment-id d-AQUTB8CY9 --profile sharma --region ap-south-1
+{
+    "deploymentInfo": {
+        "applicationName": "myapp",
+        "deploymentGroupName": "mygrp",
+        "deploymentConfigName": "CodeDeployDefault.LambdaLinear10PercentEvery1Minute",
+        "deploymentId": "d-AQUTB8CY9",
+        "revision": {
+            "revisionType": "String",
+            "string": {
+                "sha256": "150d06d2af4317157d087d6e03d2a793d7a2b15e0dccb6e4b68d0f4ccf6922d1"
+            }
+        },
+        "status": "Succeeded",
+        "createTime": "2025-02-11T18:14:54.602000+05:30",
+        "completeTime": "2025-02-11T18:24:02.432000+05:30",
+        "deploymentOverview": {
+            "Pending": 0,
+            "InProgress": 0,
+            "Succeeded": 1,                                                                                  ####Deployment Succeeded
+            "Failed": 0,
+            "Skipped": 0,
+            "Ready": 0
+        },
+        "creator": "user",
+        "ignoreApplicationStopFailures": false,
+        "updateOutdatedInstancesOnly": false,
+        "deploymentStyle": {
+            "deploymentType": "BLUE_GREEN",
+            "deploymentOption": "WITH_TRAFFIC_CONTROL"
+        },
+        "instanceTerminationWaitTimeStarted": false,
+        "fileExistsBehavior": "DISALLOW",
+        "deploymentStatusMessages": [],
+        "computePlatform": "Lambda"
+    }
+}
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ 
+
+Traffic is also moved to Version 2
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ aws lambda invoke --function-name myfunc:myalias  response.json --profile sharma --region ap-south-1
+{
+    "StatusCode": 200,
+    "ExecutedVersion": "2"
+}
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ 
+
+
+
+
