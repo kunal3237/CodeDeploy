@@ -1,0 +1,198 @@
+#####Test Case CodeDeploy with ECS
+AWS CodeDeploy performs Blue/Green Deployment in ECS. To achieve this, you need to define an AppSpec.yml file with the new image. CodeDeploy will create a service using the updated image and handle the traffic switch between the old and new versions.
+
+Prerequisites
+1️⃣ Target Groups: Blue (Existing) and Green (New)
+2️⃣ Load Balancer
+3️⃣ Task Definitions: Blue and Green
+4️⃣ ECS Cluster
+5️⃣ Blue Service (Existing ECS Service)attached to Load balancer
+
+ECS Cluster Components
+An ECS Cluster consists of the following key components:
+
+Cluster: Manages and organizes ECS services and tasks.
+
+Task Definition: Defines the container specifications, including CPU, memory, and networking.
+
+Service: Maintains the desired count of running tasks and enables load balancing.
+
+Load Balancer: Distributes traffic across running tasks.
+
+Target Groups: Directs incoming traffic to the appropriate ECS tasks based on routing rules.
+
+Note: Please make sure you have required roles and prvis.
+
+ECS Cluster
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ aws ecs list-clusters --profile sharma --region ap-south-1
+{
+    "clusterArns": [
+        "arn:aws:ecs:ap-south-1:*********************:cluster/myecs"
+    ]
+}
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ 
+########################################Task Definition ######################
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ aws ecs describe-task-definition  --task-definition codedeploy --profile sharma --region ap-south-1
+{
+    "taskDefinition": {
+        "taskDefinitionArn": "arn:aws:ecs:ap-south-1:*********************:task-definition/codedeploy:1",
+        "containerDefinitions": [
+            {
+                "name": "con1",
+                "image": "kunal3237/myapp:latest",                                          ####Image Used before deployment
+                "cpu": 512,
+                "memory": 512,
+                "portMappings": [
+                    {
+                        "containerPort": 80,
+                        "hostPort": 80,
+                        "protocol": "tcp",
+                        "name": "con1-80-tcp",
+                        "appProtocol": "http"
+                    }
+                ],
+                "essential": true,
+                "environment": [],
+                "environmentFiles": [],
+                "mountPoints": [],
+                "volumesFrom": [],
+                "ulimits": [],
+                "logConfiguration": {
+                    "logDriver": "awslogs",
+                    "options": {
+                        "awslogs-group": "/ecs/codedeploy",
+                        "mode": "non-blocking",
+                        "awslogs-create-group": "true",
+                        "max-buffer-size": "25m",
+                        "awslogs-region": "ap-south-1",
+                        "awslogs-stream-prefix": "ecs"
+                    },
+                    "secretOptions": []
+                },
+                "systemControls": []
+            }
+        ],
+        "family": "codedeploy",
+        "executionRoleArn": "arn:aws:iam::*********************:role/ecsTaskExecutionRole",
+        "networkMode": "awsvpc",
+        "revision": 1,
+        "volumes": [],
+        "status": "ACTIVE",
+        "requiresAttributes": [
+            {
+                "name": "com.amazonaws.ecs.capability.logging-driver.awslogs"
+            },
+            {
+                "name": "ecs.capability.execution-role-awslogs"
+            },
+            {
+                "name": "com.amazonaws.ecs.capability.docker-remote-api.1.19"
+            },
+            {
+                "name": "com.amazonaws.ecs.capability.docker-remote-api.1.28"
+            },
+            {
+                "name": "com.amazonaws.ecs.capability.docker-remote-api.1.18"
+            },
+            {
+                "name": "ecs.capability.task-eni"
+            },
+            {
+                "name": "com.amazonaws.ecs.capability.docker-remote-api.1.29"
+            }
+        ],
+        "placementConstraints": [],
+        "compatibilities": [
+            "EC2",
+            "FARGATE"
+        ],
+        "runtimePlatform": {
+            "cpuArchitecture": "X86_64",
+            "operatingSystemFamily": "LINUX"
+        },
+        "requiresCompatibilities": [
+            "FARGATE"
+        ],
+        "cpu": "1024",
+        "memory": "2048",
+        "registeredAt": "2025-02-12T16:17:25.633000+05:30",
+        "registeredBy": "arn:aws:iam::*********************:root"
+    },
+    "tags": []
+}
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ 
+############################################Task Detail with Images being used ####################################
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ aws ecs describe-task-definition  --task-definition codedeploy --profile sharma --region ap-south-1 --query taskDefinition.containerDefi
+nitions[0].image
+"kunal3237/myapp:latest"
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ aws ecs describe-task-definition  --task-definition codedeployafter --profile sharma --region ap-south-1 --query taskDefinition.containerDefinitions[0].image
+"kunal3237/myapp:1"
+
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ 
+#############################################Service details pointing to Blue Task definition##################
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ aws ecs describe-services --services codedeploy-service --cluster myecs --profile sharma --region ap-south-1 --query services[0].taskDefinition
+"arn:aws:ecs:ap-south-1:*********************:task-definition/codedeploy:1"                                                      ######Blue Task used by Service
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ aws ecs describe-services --services codedeploy-service --cluster myecs --profile sharma --region ap-south-1 --query services[0].taskDefinition --query services[0].taskSets[*].loadBalancers
+[
+    [
+        {
+            "targetGroupArn": "arn:aws:elasticloadbalancing:ap-south-1:*********************:targetgroup/BlueTG/e519998bbbbbcfc9",        ###Blue Target Group used by Load Balancer
+            "containerName": "con1",
+            "containerPort": 80
+        }
+    ]
+]
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ 
+
+########################CodeDeployment with Below appspec.yml:
+version: 0.0
+Resources:
+  - TargetService:
+      Type: AWS::ECS::Service
+      Properties:
+        TaskDefinition: "arn:aws:ecs:ap-south-1:88888888:task-definition/codedeployafter:1"                                ###Green task and Container
+        LoadBalancerInfo:
+          ContainerName: "mycon1"
+          ContainerPort: 80
+####Defining Green Task Definition here   
+
+Traffic Shift during Deployment and After Deployment:
+################################################################
+
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ for i in {1..5}; do curl http://myalb-447078142.ap-south-1.elb.amazonaws.com| grep -i " Docker Hubi" ; sleep 5; done
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   679  100   679    0     0   6555      0 --:--:-- --:--:-- --:--:--  6592
+  <h2>Docker Image BUILD, RUN, TAG and PUSH to Docker Hubi,2</h2>                          ####Version 2
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   679  100   679    0     0   5110      0 --:--:-- --:--:-- --:--:--  5143
+  <h2>Docker Image BUILD, RUN, TAG and PUSH to Docker Hubi,1</h2>                         ####Version 1
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   679  100   679    0     0   5878      0 --:--:-- --:--:-- --:--:--  5904
+  <h2>Docker Image BUILD, RUN, TAG and PUSH to Docker Hubi,1</h2>                         ####Version 1
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   679  100   679    0     0   6836      0 --:--:-- --:--:-- --:--:--  6790
+  <h2>Docker Image BUILD, RUN, TAG and PUSH to Docker Hubi,2</h2>                         ####Version 2
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   679  100   679    0     0   5801      0 --:--:-- --:--:-- --:--:--  5853
+  <h2>Docker Image BUILD, RUN, TAG and PUSH to Docker Hubi,2</h2>                         ####Version 2
+
+Service Pointing to Green Task/Trget Group##################################################
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ aws ecs describe-services --services codedeploy-service --cluster myecs --profile sharma --region ap-south-1 --query services[0].taskDefinition --query services[0].taskSets[*].loadBalancers
+[
+    [
+        {
+            "targetGroupArn": "arn:aws:elasticloadbalancing:ap-south-1:*************:targetgroup/GreenTG/0dbb9cd0bb0e6cdb",
+            "containerName": "mycon1",
+            "containerPort": 80
+        }
+    ]
+]
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ aws ecs describe-services --services codedeploy-service --cluster myecs --profile sharma --region ap-south-1 --query services[0].taskDefinition
+"arn:aws:ecs:ap-south-1:***************:task-definition/codedeployafter:1"                              ###############Green Task
+kunal@kunal-Lenovo-U410:~/cloudFormation/chapter1$ 
+
